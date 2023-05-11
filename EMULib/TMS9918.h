@@ -6,7 +6,7 @@
 /** produced by Texas Instruments. See files TMS9918.c and  **/
 /** DRV9918.c for implementation.                           **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 1996-2018                 **/
+/** Copyright (C) Marat Fayzullin 1996-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -69,6 +69,11 @@ extern "C" {
 typedef unsigned char byte;
 #endif
 
+#ifndef QUAD_TYPE_DEFINED
+#define QUAD_TYPE_DEFINED
+typedef unsigned int quad;
+#endif
+
 #ifndef RGB_TYPE_DEFINED
 #define RGB_TYPE_DEFINED
 typedef struct { unsigned char R,G,B; } RGB;
@@ -91,48 +96,56 @@ typedef unsigned int pixel;
 /** This data structure stores VDP state, screen buffer,    **/
 /** VRAM, and other parameters.                             **/
 /*************************************************************/
+#pragma pack(4)
 typedef struct
 {
   /* User-Configurable Parameters */
-  byte  DrawFrames;  /* % of frames to draw     */
-  byte  MaxSprites;  /* Number of sprites/line  */
-  int   Scanlines;   /* Scanlines per frame     */
+  byte  DrawFrames;   /* % of frames to draw     */
+  byte  MaxSprites;   /* Number of sprites/line  */
+  int   Scanlines;    /* Scanlines per frame     */
 
   /* VDP State */
-  byte  *VRAM;       /* 16kB of VRAM            */
-  byte  R[16];       /* VDP control registers   */
-  byte  Status;      /* VDP status register     */
-  byte  VKey;        /* 1: Control byte latched */
-  byte  WKey;        /* 1: VRAM in WRITE mode   */
-  byte  Mode;        /* Current screen mode     */
-  int   Line;        /* Current scanline        */
-  byte  CLatch;      /* Control register latch  */
-  byte  DLatch;      /* Data register latch     */
-  short VAddr;       /* VRAM access address     */
-
-  /* VRAM Tables */
-  byte  *ChrTab;     /* Character Name Table    */
-  byte  *ChrGen;     /* Character Pattern Table */
-  byte  *SprTab;     /* Sprite Attribute Table  */
-  byte  *SprGen;     /* Sprite Pattern Table    */
-  byte  *ColTab;     /* Color Table             */
+  quad  Reserved1;    /* Reserved, do not use    */
+  byte  R[16];        /* VDP control registers   */
+  byte  Status;       /* VDP status register     */
+  byte  VKey;         /* 1: Control byte latched */
+  byte  WKey;         /* 1: VRAM in WRITE mode   */
+  byte  Mode;         /* Current screen mode     */
+  int   Line;         /* Current scanline        */
+  byte  CLatch;       /* Control register latch  */
+  byte  DLatch;       /* Data register latch     */
+  short VAddr;        /* VRAM access address     */
+  quad  Reserved2[5]; /* Reserved, do not use    */
 
   /* Table Address Masks */
-  int   ChrTabM;     /* ChrTab[] address mask   */
-  int   ColTabM;     /* ColTab[] address mask   */
-  int   ChrGenM;     /* ChrGen[] address mask   */
-  int   SprTabM;     /* SprTab[] address mask   */
+  int   ChrTabM;      /* ChrTab[] address mask   */
+  int   ColTabM;      /* ColTab[] address mask   */
+  int   ChrGenM;      /* ChrGen[] address mask   */
+  int   SprTabM;      /* SprTab[] address mask   */
 
   /* Picture Rendering */
-  void  *XBuf;       /* Buffer where picture is formed     */
-  int   XPal[16];    /* Colors obtained with SetColor()    */
-  int   FGColor;     /* Foreground color (Rg#7)            */
-  int   BGColor;     /* Background color (Rg#7)            */
-  byte  UCount;      /* Screen update counter              */
-  byte  OwnXBuf;     /* 1: XBuf was allocated in New9918() */
-  int   Width;       /* XBuf width in pixels >=256         */
-  int   Height;      /* XBuf height in pixels >=192        */
+  int   Reserved3;    /* Reserved, do not use               */
+  int   XPal[16];     /* Colors obtained with SetColor()    */
+  int   FGColor;      /* Foreground color (Rg#7)            */
+  int   BGColor;      /* Background color (Rg#7)            */
+  byte  UCount;       /* Screen update counter              */
+  byte  OwnXBuf;      /* 1: XBuf was allocated in New9918() */
+  int   Width;        /* XBuf width in pixels >=256         */
+  int   Height;       /* XBuf height in pixels >=192        */
+
+  /*---- Save9918() will save all data up to this point ----*/
+
+  void  *XBuf;        /* Output picture buffer   */
+  byte  *VRAM;        /* 16kB of VRAM            */
+
+  /* VRAM Tables */
+  byte  *ChrTab;      /* Character Name Table    */
+  byte  *ChrGen;      /* Character Pattern Table */
+  byte  *SprTab;      /* Sprite Attribute Table  */
+  byte  *SprGen;      /* Sprite Pattern Table    */
+  byte  *ColTab;      /* Color Table             */
 } TMS9918;
+#pragma pack()
 
 /** Palette9918[] ********************************************/
 /** 16 standard colors used by TMS9918/TMS9928 VDP chips.   **/
@@ -200,6 +213,18 @@ byte Loop9918(TMS9918 *VDP);
 /*************************************************************/
 byte Write9918(TMS9918 *VDP,byte R,byte V);
 
+/** Save9918() ***********************************************/
+/** Save TMS9918 state to a given buffer of given maximal   **/
+/** size. Returns number of bytes saved or 0 on failure.    **/
+/*************************************************************/
+unsigned int Save9918(const TMS9918 *VDP,byte *Buf,unsigned int Size);
+
+/** Load9918() ***********************************************/
+/** Load TMS9918 state from a given buffer of given maximal **/
+/** size. Returns number of bytes loaded or 0 on failure.   **/
+/*************************************************************/
+unsigned int Load9918(TMS9918 *VDP,byte *Buf,unsigned int Size);
+
 /** RefreshLine#() *******************************************/
 /** Screen handlers refreshing current scanline in a screen **/
 /** buffer. These functions are used from TMS9918.c and     **/
@@ -209,6 +234,13 @@ void RefreshLine0(TMS9918 *VDP,byte Y);
 void RefreshLine1(TMS9918 *VDP,byte Y);
 void RefreshLine2(TMS9918 *VDP,byte Y);
 void RefreshLine3(TMS9918 *VDP,byte Y);
+
+/** ScanSprites() ********************************************/
+/** Compute bitmask of sprites shown in a given scanline.   **/
+/** Returns the first sprite to show or -1 if none shown.   **/
+/** Also updates 5th sprite fields in the status register.  **/
+/*************************************************************/
+int ScanSprites(TMS9918 *VDP,byte Y,unsigned int *Mask);
 
 /** RefreshScreen() ******************************************/
 /** Refresh screen. This function is called in the end of   **/

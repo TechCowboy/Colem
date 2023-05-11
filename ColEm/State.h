@@ -5,7 +5,7 @@
 /** This file contains routines to save and load emulation  **/
 /** state.                                                  **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 1994-2018                 **/
+/** Copyright (C) Marat Fayzullin 1994-2021                 **/
 /**     The contents of this file are property of Marat     **/
 /**     Fayzullin and should only be used as agreed with    **/
 /**     him. The file is confidential. Absolutely no        **/
@@ -88,14 +88,28 @@ unsigned int SaveState(unsigned char *Buf,unsigned int MaxSize)
   State[J++] = MegaPage;
   State[J++] = Port53;
 
-  /* Write out data structures */
+  /* Save CPU state */
   SaveSTRUCT(CPU);
-  SaveSTRUCT(VDP);
+
+  /* Save VDP state */
+  J = Save9918(&VDP,Buf+Size,MaxSize-Size);
+  if(!J) return(0); else Size+=J;
+
+  /* Save remaining states */
   SaveSTRUCT(PSG);
   SaveARRAY(State);
   SaveDATA(RAM_BASE,0xA000);
   SaveDATA(VDP.VRAM,0x4000);
   SaveSTRUCT(AYPSG);
+
+  /* If running Coleco Adam, save Adam RAM */
+  if(Mode&CV_ADAM)
+  {
+    SaveDATA(RAM_MAIN_LO,0x8000);
+    SaveDATA(RAM_EXP_LO,0x8000);
+    SaveDATA(RAM_MAIN_HI,0x8000);
+    SaveDATA(RAM_EXP_HI,0x8000);
+  }
 
   /* Return amount of data written */
   return(Size);
@@ -107,35 +121,20 @@ unsigned int SaveState(unsigned char *Buf,unsigned int MaxSize)
 /*************************************************************/
 unsigned int LoadState(unsigned char *Buf,unsigned int MaxSize)
 {
-  int State[256],XPal[16],J;
+  int State[256],J;
   unsigned int Size;
-  byte *VRAM;
-  void *XBuf;
 
   /* No data read yet */
   Size = 0;
 
-  /* Read CPU state */
+  /* Load CPU state */
   LoadSTRUCT(CPU);
 
-  /* Read VDP state, preserving VRAM address */
-  memcpy(XPal,VDP.XPal,sizeof(XPal));
-  VRAM = VDP.VRAM;
-  XBuf = VDP.XBuf;
-  LoadSTRUCT(VDP);
-  memcpy(VDP.XPal,XPal,sizeof(VDP.XPal));
-  VDP.ChrTab += VRAM-VDP.VRAM;
-  VDP.ChrGen += VRAM-VDP.VRAM;
-  VDP.SprTab += VRAM-VDP.VRAM;
-  VDP.SprGen += VRAM-VDP.VRAM;
-  VDP.ColTab += VRAM-VDP.VRAM;
-  VDP.VRAM    = VRAM;
-  VDP.XBuf    = XBuf;
+  /* Load VDP state */
+  J = Load9918(&VDP,Buf+Size,MaxSize-Size);
+  if(!J) return(0); else Size+=J;
 
-  /* Update foreground/background colors */
-  Write9918(&VDP,7,VDP.R[7]);
-
-  /* Read in remaining data structures */
+  /* Load remaining states */
   LoadSTRUCT(PSG);
   LoadARRAY(State);
   LoadDATA(RAM_BASE,0xA000);
@@ -171,6 +170,15 @@ unsigned int LoadState(unsigned char *Buf,unsigned int MaxSize)
   MegaPage   = State[J++]&(MegaSize-1);
   Port53     = State[J++];
 
+  /* If running Coleco Adam, load Adam RAM */
+  if(Mode&CV_ADAM)
+  {
+    LoadDATA(RAM_MAIN_LO,0x8000);
+    LoadDATA(RAM_EXP_LO,0x8000);
+    LoadDATA(RAM_MAIN_HI,0x8000);
+    LoadDATA(RAM_EXP_HI,0x8000);
+  }
+
   /* Normal cartridges have fixed ROM pages */
   if(MegaSize<=2) MegaPage=1;
 
@@ -180,6 +188,9 @@ unsigned int LoadState(unsigned char *Buf,unsigned int MaxSize)
 
   /* Set current update period */
   VDP.DrawFrames = UPeriod;
+
+  /* If no Adam ROMs, reset to ColecoVision mode */
+  if((Mode&CV_ADAM) && !AdamROMs) ResetColeco(Mode);
 
   /* Return amount of data read */
   return(Size);
@@ -212,7 +223,7 @@ int SaveSTA(const char *Name)
   if(!F) { free(Buf);return(0); }
 
   /* Fill header */
-  J = CartCRC();
+  J = LastCRC;
   Header[5] = Mode&CV_ADAM;
   Header[6] = J&0xFF;
   Header[7] = (J>>8)&0xFF;
@@ -250,7 +261,7 @@ int LoadSTA(const char *Name)
   /* Read and check the header */
   if(fread(Header,1,16,F)!=16)       { fclose(F);return(0); }
   if(memcmp(Header,"STF\032\002",5)) { fclose(F);return(0); }
-  J = CartCRC();
+  J = LastCRC;
   if(
     (Header[5]!=(Mode&CV_ADAM)) ||
     (Header[6]!=(J&0xFF))       ||

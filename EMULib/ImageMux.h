@@ -6,7 +6,7 @@
 /** depths (BPP8,BPP16,BPP32). It is used automatically     **/
 /** when none of BPP* values are defined.                   **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 2008-2018                 **/
+/** Copyright (C) Marat Fayzullin 2008-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -26,29 +26,30 @@
 #undef PIXEL
 
 #define BPP8
-#define pixel           unsigned char
-#define PIXEL(R,G,B)    (pixel)(((7*(R)/255)<<5)|((7*(G)/255)<<2)|(3*(B)/255))
-#define GetColor        GetColor_8
-#define IMGCopy         IMGCopy_8
-#define IMGDrawRect     IMGDrawRect_8
-#define IMGFillRect     IMGFillRect_8
-#define CropImage       CropImage_8
-#define ClearImage      ClearImage_8
-#define ScaleImage      ScaleImage_8
-#define RasterizeImage  RasterizeImage_8
-#define TelevizeImage   TelevizeImage_8
-#define LcdizeImage     LcdizeImage_8
-#define CMYizeImage     CMYizeImage_8
-#define RGBizeImage     RGBizeImage_8
-#define MonoImage       MonoImage_8
-#define SepiaImage      SepiaImage_8
-#define GreenImage      GreenImage_8
-#define AmberImage      AmberImage_8
-#define SoftenImage     SoftenImage_8
-#define SoftenSCALE2X   SoftenSCALE2X_8
-#define SoftenEPX       SoftenEPX_8
-#define SoftenEAGLE     SoftenEAGLE_8
-#define LoadPNG         LoadPNG_8
+#define pixel            unsigned char
+#define PIXEL(R,G,B)     (pixel)(((7*(R)/255)<<5)|((7*(G)/255)<<2)|(3*(B)/255))
+#define GetColor         GetColor_8
+#define IMGCopy          IMGCopy_8
+#define IMGDrawRect      IMGDrawRect_8
+#define IMGFillRect      IMGFillRect_8
+#define CropImage        CropImage_8
+#define ClearImage       ClearImage_8
+#define ScaleImage       ScaleImage_8
+#define InterpolateImage InterpolateImage_8
+#define RasterizeImage   RasterizeImage_8
+#define TelevizeImage    TelevizeImage_8
+#define LcdizeImage      LcdizeImage_8
+#define CMYizeImage      CMYizeImage_8
+#define RGBizeImage      RGBizeImage_8
+#define MonoImage        MonoImage_8
+#define SepiaImage       SepiaImage_8
+#define GreenImage       GreenImage_8
+#define AmberImage       AmberImage_8
+#define SoftenImage      SoftenImage_8
+#define SoftenSCALE2X    SoftenSCALE2X_8
+#define SoftenEPX        SoftenEPX_8
+#define SoftenEAGLE      SoftenEAGLE_8
+#define LoadPNG          LoadPNG_8
 #include "Image.c"
 #undef pixel
 #undef PIXEL
@@ -59,6 +60,7 @@
 #undef CropImage
 #undef ClearImage
 #undef ScaleImage
+#undef InterpolateImage
 #undef RasterizeImage
 #undef TelevizeImage
 #undef LcdizeImage
@@ -76,44 +78,45 @@
 #undef BPP8
 
 #define BPP16
-#define pixel           unsigned short
+#define pixel            unsigned short
 #if defined(UNIX) || defined(ANDROID) || defined(S60) || defined(UIQ) || defined(NXC2600) || defined(STMP3700)
 /* Symbian and Unix use true 16BPP color */
-#define PIXEL(R,G,B)    (pixel)(((31*(R)/255)<<11)|((63*(G)/255)<<5)|(31*(B)/255))
-#define RMASK           0xF800
-#define GMASK           0x07E0
-#define BMASK           0x001F
+#define PIXEL(R,G,B)     (pixel)(((31*(R)/255)<<11)|((63*(G)/255)<<5)|(31*(B)/255))
+#define RMASK            0xF800
+#define GMASK            0x07E0
+#define BMASK            0x001F
 #else
 /* Other platforms use 15BPP color */
-#define PIXEL(R,G,B)    (pixel)(((31*(R)/255)<<10)|((31*(G)/255)<<5)|(31*(B)/255))
-#define RMASK           0x7C00
-#define GMASK           0x03E0
-#define BMASK           0x001F
+#define PIXEL(R,G,B)     (pixel)(((31*(R)/255)<<10)|((31*(G)/255)<<5)|(31*(B)/255))
+#define RMASK            0x7C00
+#define GMASK            0x03E0
+#define BMASK            0x001F
 #endif
-#define GetColor        GetColor_16
-#define IMGCopy         IMGCopy_16
-#define IMGDrawRect     IMGDrawRect_16
-#define IMGFillRect     IMGFillRect_16
-#define CropImage       CropImage_16
-#define ClearImage      ClearImage_16
-#define ScaleImage      ScaleImage_16
-#define RasterizeImage  RasterizeImage_16
-#define TelevizeImage   TelevizeImage_16
-#define LcdizeImage     LcdizeImage_16
-#define CMYizeImage     CMYizeImage_16
-#define RGBizeImage     RGBizeImage_16
-#define MonoImage       MonoImage_16
-#define SepiaImage      SepiaImage_16
-#define GreenImage      GreenImage_16
-#define AmberImage      AmberImage_16
-#define SoftenImage     SoftenImage_16
-#define SoftenSCALE2X   SoftenSCALE2X_16
-#define SoftenEPX       SoftenEPX_16
-#define SoftenEAGLE     SoftenEAGLE_16
-#define LoadPNG         LoadPNG_16
-#define ARMScaleImage   ARMScaleImage_16
-#define Merge2          Merge2_16
-#define Merge4          Merge4_16
+#define GetColor         GetColor_16
+#define IMGCopy          IMGCopy_16
+#define IMGDrawRect      IMGDrawRect_16
+#define IMGFillRect      IMGFillRect_16
+#define CropImage        CropImage_16
+#define ClearImage       ClearImage_16
+#define ScaleImage       ScaleImage_16
+#define InterpolateImage InterpolateImage_16
+#define RasterizeImage   RasterizeImage_16
+#define TelevizeImage    TelevizeImage_16
+#define LcdizeImage      LcdizeImage_16
+#define CMYizeImage      CMYizeImage_16
+#define RGBizeImage      RGBizeImage_16
+#define MonoImage        MonoImage_16
+#define SepiaImage       SepiaImage_16
+#define GreenImage       GreenImage_16
+#define AmberImage       AmberImage_16
+#define SoftenImage      SoftenImage_16
+#define SoftenSCALE2X    SoftenSCALE2X_16
+#define SoftenEPX        SoftenEPX_16
+#define SoftenEAGLE      SoftenEAGLE_16
+#define LoadPNG          LoadPNG_16
+#define ARMScaleImage    ARMScaleImage_16
+#define Merge2           Merge2_16
+#define Merge4           Merge4_16
 #undef LIBARM_H
 #include "Image.c"
 #undef pixel
@@ -128,6 +131,7 @@
 #undef CropImage
 #undef ClearImage
 #undef ScaleImage
+#undef InterpolateImage
 #undef RasterizeImage
 #undef TelevizeImage
 #undef LcdizeImage
@@ -148,39 +152,40 @@
 #undef BPP16
 
 #define BPP32
-#define pixel           unsigned int
+#define pixel            unsigned int
 #if defined(ANDROID)
-#define PIXEL(R,G,B)    (pixel)(((int)R<<16)|((int)G<<8)|B|0xFF000000)
+#define PIXEL(R,G,B)     (pixel)(((int)R<<16)|((int)G<<8)|B|0xFF000000)
 #else
-#define PIXEL(R,G,B)    (pixel)(((int)R<<16)|((int)G<<8)|B)
+#define PIXEL(R,G,B)     (pixel)(((int)R<<16)|((int)G<<8)|B)
 #endif
-#define RMASK           0xFF0000
-#define GMASK           0x00FF00
-#define BMASK           0x0000FF
-#define GetColor        GetColor_32
-#define IMGCopy         IMGCopy_32
-#define IMGDrawRect     IMGDrawRect_32
-#define IMGFillRect     IMGFillRect_32
-#define CropImage       CropImage_32
-#define ClearImage      ClearImage_32
-#define ScaleImage      ScaleImage_32
-#define RasterizeImage  RasterizeImage_32
-#define TelevizeImage   TelevizeImage_32
-#define LcdizeImage     LcdizeImage_32
-#define CMYizeImage     CMYizeImage_32
-#define RGBizeImage     RGBizeImage_32
-#define MonoImage       MonoImage_32
-#define SepiaImage      SepiaImage_32
-#define GreenImage      GreenImage_32
-#define AmberImage      AmberImage_32
-#define SoftenImage     SoftenImage_32
-#define SoftenSCALE2X   SoftenSCALE2X_32
-#define SoftenEPX       SoftenEPX_32
-#define SoftenEAGLE     SoftenEAGLE_32
-#define LoadPNG         LoadPNG_32
-#define ARMScaleImage   ARMScaleImage_32
-#define Merge2          Merge2_32
-#define Merge4          Merge4_32
+#define RMASK            0xFF0000
+#define GMASK            0x00FF00
+#define BMASK            0x0000FF
+#define GetColor         GetColor_32
+#define IMGCopy          IMGCopy_32
+#define IMGDrawRect      IMGDrawRect_32
+#define IMGFillRect      IMGFillRect_32
+#define CropImage        CropImage_32
+#define ClearImage       ClearImage_32
+#define ScaleImage       ScaleImage_32
+#define InterpolateImage InterpolateImage_32
+#define RasterizeImage   RasterizeImage_32
+#define TelevizeImage    TelevizeImage_32
+#define LcdizeImage      LcdizeImage_32
+#define CMYizeImage      CMYizeImage_32
+#define RGBizeImage      RGBizeImage_32
+#define MonoImage        MonoImage_32
+#define SepiaImage       SepiaImage_32
+#define GreenImage       GreenImage_32
+#define AmberImage       AmberImage_32
+#define SoftenImage      SoftenImage_32
+#define SoftenSCALE2X    SoftenSCALE2X_32
+#define SoftenEPX        SoftenEPX_32
+#define SoftenEAGLE      SoftenEAGLE_32
+#define LoadPNG          LoadPNG_32
+#define ARMScaleImage    ARMScaleImage_32
+#define Merge2           Merge2_32
+#define Merge4           Merge4_32
 #undef LIBARM_H
 #include "Image.c"
 #undef pixel
@@ -195,6 +200,7 @@
 #undef CropImage
 #undef ClearImage
 #undef ScaleImage
+#undef InterpolateImage
 #undef RasterizeImage
 #undef TelevizeImage
 #undef LcdizeImage
@@ -368,6 +374,22 @@ void ScaleImage(Image *Dst,const Image *Src,int X,int Y,int W,int H)
     case 16: ScaleImage_16(Dst,Src,X,Y,W,H);break;
     case 24:
     case 32: ScaleImage_32(Dst,Src,X,Y,W,H);break;
+  }
+}
+
+/** InterpolateImage() ***************************************/
+/** Scale Src into Dst using simple interpolation.          **/
+/*************************************************************/
+void InterpolateImage(Image *Dst,const Image *Src,int X,int Y,int W,int H)
+{
+  if(Src->D!=Dst->D) return;
+
+  switch(Dst->D)
+  {
+    case 8:  InterpolateImage_8(Dst,Src,X,Y,W,H);break;
+    case 16: InterpolateImage_16(Dst,Src,X,Y,W,H);break;
+    case 24:
+    case 32: InterpolateImage_32(Dst,Src,X,Y,W,H);break;
   }
 }
 

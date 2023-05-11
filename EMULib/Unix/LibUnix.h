@@ -5,7 +5,7 @@
 /** This file contains Unix-dependent definitions and       **/
 /** declarations for the emulation library.                 **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 1996-2018                 **/
+/** Copyright (C) Marat Fayzullin 1996-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -16,6 +16,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
+#include <X11/XKBlib.h>
 
 #ifdef MITSHM
 #include <X11/extensions/XShm.h>
@@ -58,8 +59,8 @@ extern "C" {
 #define BMASK 0x03
 #endif
 
-int  ARGC;
-char **ARGV;
+extern int  ARGC;
+extern char **ARGV;
 
 /** InitUnix() ***********************************************/
 /** Initialize Unix/X11 resources and set initial window.   **/

@@ -5,7 +5,7 @@
 /** This file contains non-essential functions that operate **/
 /** on images.                                              **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 1996-2018                 **/
+/** Copyright (C) Marat Fayzullin 1996-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -744,6 +744,64 @@ void AmberImage(Image *Img,int X,int Y,int W,int H)
     }
 #endif /* !UNIX && !ANDROID && !ARM_CPU && !NXC2600 */
 #endif /* BPP32 || BPP24 || BPP16 */
+}
+
+/** InterpolateImage() ***************************************/
+/** Scale image Src into Dst using linear interpolation.    **/
+/*************************************************************/
+void InterpolateImage(Image *Dst,const Image *Src,int X,int Y,int W,int H)
+{
+#ifdef BPP8
+  /* Things look real nasty in BPP8, better just scale */
+  ScaleImage(Dst,Src,X,Y,W,H);
+#else
+  register unsigned int DX,DY;
+  register const pixel *S,*SP;
+  register pixel *DP,*D;
+
+  /* Check arguments, compute start pointer */
+  if(W<0) { X+=W;W=-W; }
+  if(H<0) { Y+=H;H=-H; }
+  X  = X<0? 0:X>Src->W? Src->W:X;
+  Y  = Y<0? 0:Y>Src->H? Src->H:Y;
+  W  = X+W>Src->W-3? Src->W-3-X:W;
+  H  = Y+H>Src->H-3? Src->H-3-Y:H;
+  // Source image must be at least 4x4 pixels
+  if((W<=0)||(H<=0)) return;
+  S  = (pixel *)Src->Data+Y*Src->L+Src->L+X+1;
+
+  // Convert to 16:16 fixed point values
+  W  = (W-2)<<16;
+  DX = (W-0x10001+Dst->W)/Dst->W;
+  H  = (H-2)<<16;
+  DY = (H-0x10001+Dst->H)/Dst->H;
+
+  for(Y=0x10000,DP=D=(pixel *)Dst->Data;Y<H;Y+=DY,DP=(D+=Dst->L))
+  {
+    unsigned int A,B,C,D,Y1;
+
+    // Compute new source pointer
+    SP = S+(Y>>16)*Src->L;
+
+    // Get fractional part of Y
+    Y1 = Y&0xFFFF;
+
+    for(X=0x10000;X<W;SP-=X>>16,X+=DX)
+    {
+      // Get next 2x2 pixels
+      SP+= X>>16;
+      A  = SP[0];
+      B  = SP[1];
+      C  = SP[Src->L];
+      D  = SP[Src->L+1];
+
+      // If all 2x2 pixels are the same, do not interpolate
+      *DP++ = (A==B && C==D)? (A==C? A:Merge2(A,C,Y1))
+            : (A==C && B==D)? Merge2(A,B,X&0xFFFF)
+            : Merge4(A,B,C,D,X&0xFFFF,Y1);
+    }
+  }
+#endif /* !BPP8 */
 }
 
 /** SoftenImage() ********************************************/

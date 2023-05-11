@@ -5,7 +5,7 @@
 /** This file contains Unix-dependent implementation        **/
 /** parts of the emulation library.                         **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 1996-2018                 **/
+/** Copyright (C) Marat Fayzullin 1996-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -28,6 +28,9 @@
 #endif
 
 #define FPS_COLOR PIXEL(255,0,255)
+
+int    ARGC;
+char   **ARGV;
 
 extern int MasterSwitch; /* Switches to turn channels on/off */
 extern int MasterVolume; /* Master volume                    */
@@ -176,6 +179,8 @@ int ShowVideo(void)
   J = Effects&EFF_SOFTEN_ALL;
   if((J==EFF_2XSAI) || (J==EFF_HQ4X))
     SoftenImage(&OutImg,VideoImg,VideoX,VideoY,VideoW,VideoH);
+  else if(J==EFF_LINEAR)
+    InterpolateImage(&OutImg,VideoImg,VideoX,VideoY,VideoW,VideoH);
   else if(J==EFF_EPX)
     SoftenEPX(&OutImg,VideoImg,VideoX,VideoY,VideoW,VideoH);
   else if(J==EFF_EAGLE)
@@ -246,11 +251,11 @@ int ShowVideo(void)
   /* Show framerate if requested */
   if((Effects&EFF_SHOWFPS)&&(FrameRate>0))
   {
-    char S[8];
+    char S[16];
     sprintf(S,"%dfps",FrameRate);
     PrintXY(
       &OutImg,S,
-      ((OutImg.W-VideoW)>>1)+8,((OutImg.H-VideoH)>>1)+8,
+      ((OutImg.W-SW)>>1)+8,((OutImg.H-SH)>>1)+8,
       FPS_COLOR,-1
     );
   }
@@ -630,6 +635,7 @@ void SetEffects(unsigned int NewEffects)
 int ProcessEvents(int Wait)
 {
   XEvent E;
+  unsigned int I;
   int J,Count;
 
   /* Need to have display and a window */
@@ -662,11 +668,15 @@ int ProcessEvents(int Wait)
           case XK_Alt_R:        KeyModes|=CON_ALT;break;
           case XK_Control_L:
           case XK_Control_R:    KeyModes|=CON_CONTROL;break;
-          case XK_Caps_Lock:    KeyModes|=CON_CAPS;break;
           case XK_Escape:       JoyState|=BTN_EXIT;LastKey=CON_EXIT;break;
           case XK_Tab:          JoyState|=BTN_SELECT;break;
           case XK_Return:       JoyState|=BTN_START;LastKey=CON_OK;break;
           case XK_BackSpace:    LastKey=8;break;
+
+          case XK_Caps_Lock:
+            if(!XkbGetIndicatorState(Dsp,XkbUseCoreKbd,&I))
+              KeyModes = (KeyModes&~CON_CAPS)|(I&1? CON_CAPS:0);
+            break;
 
           case 'q': case 'e': case 't': case 'u': case 'o':
             JoyState|=BTN_FIREL;break;
@@ -720,10 +730,14 @@ int ProcessEvents(int Wait)
           case XK_Alt_R:        KeyModes&=~CON_ALT;break;
           case XK_Control_L:
           case XK_Control_R:    KeyModes&=~CON_CONTROL;break;
-          case XK_Caps_Lock:    KeyModes&=~CON_CAPS;break;
           case XK_Escape:       JoyState&=~BTN_EXIT;break;
           case XK_Tab:          JoyState&=~BTN_SELECT;break;
           case XK_Return:       JoyState&=~BTN_START;break;
+
+          case XK_Caps_Lock:
+            if(!XkbGetIndicatorState(Dsp,XkbUseCoreKbd,&I))
+              KeyModes = (KeyModes&~CON_CAPS)|(I&1? CON_CAPS:0);
+            break;
 
           case 'q': case 'e': case 't': case 'u': case 'o':
             JoyState&=~BTN_FIREL;break;

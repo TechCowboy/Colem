@@ -5,7 +5,7 @@
 /** This file contains emulation for the 24cXX series of    **/
 /** serial EEPROMs. See C24XX.h for declarations.           **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 2017-2018                 **/
+/** Copyright (C) Marat Fayzullin 2017-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -13,6 +13,7 @@
 
 #include "C24XX.h"
 #include <stdio.h>
+#include <string.h>
 
 /** Internal Chip States *************************************/
 #define RECV_CMD  0
@@ -43,6 +44,33 @@ void Reset24XX(C24XX *D,byte *Data,unsigned int Flags)
   D->Addr  = 0;
   D->Data  = Data;
   D->Flags = Flags;
+  D->Rsrvd = 0;
+}
+
+/** Save24XX() ***********************************************/
+/** Save 24xx chip state to a given buffer of given maximal **/
+/** size. Returns number of bytes saved or 0 on failure.    **/
+/** EEPROM contents are not saved.                          **/
+/*************************************************************/
+unsigned int Save24XX(const register C24XX *D,byte *Buf,unsigned int Size)
+{
+  unsigned int N = (const byte *)&(D->Data) - (const byte *)D;
+  if(N>Size) return(0);
+  memcpy(Buf,D,N);
+  return(N);
+}
+
+/** Load24XX() ***********************************************/
+/** Load 24xx chip state from given buffer of given maximal **/
+/** size. Returns number of bytes loaded or 0 on failure.   **/
+/** EEPROM contents are not loaded.                         **/
+/*************************************************************/
+unsigned int Load24XX(register C24XX *D,byte *Buf,unsigned int Size)
+{
+  unsigned int N = (const byte *)&(D->Data) - (const byte *)D;
+  if(N>Size) return(0);
+  memcpy(D,Buf,N);
+  return(N);
 }
 
 /** Read24XX *************************************************/

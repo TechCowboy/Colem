@@ -5,7 +5,7 @@
 /** This file contains routines for gameplay recording and  **/
 /** replay.                                                 **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 2013-2018                 **/
+/** Copyright (C) Marat Fayzullin 2013-2021                 **/
 /**     The contents of this file are property of Marat     **/
 /**     Fayzullin and should only be used as agreed with    **/
 /**     him. The file is confidential. Absolutely no        **/
@@ -563,7 +563,7 @@ void RPLShow(Image *Img,int X,int Y)
     /* If replay is playing... */
     if(RPLUCount<0)
     {
-      ShadowPrintXY(Img,"^ TO PAUSE",(Img->W-8*10)>>1,Img->H-28,CLR_FG,CLR_BG);
+      ShadowPrintXY(Img,"^ TO PAUSE",(Img->W-8*10)>>1,Img->H-Y-8,CLR_FG,CLR_BG);
 
       for(J=1;J<=RPL_SIGNSIZE/2;++J,P+=Img->L)
       {
@@ -581,9 +581,9 @@ void RPLShow(Image *Img,int X,int Y)
     }
     else
     {
-      ShadowPrintXY(Img,"^ TO RESUME",(Img->W-8*11)>>1,Img->H-28,CLR_FG,CLR_BG);
-      ShadowPrintXY(Img,"<",20,(Img->H-8)>>1,CLR_FG,CLR_BG);
-      ShadowPrintXY(Img,">",Img->W-28,(Img->H-8)>>1,CLR_FG,CLR_BG);
+      ShadowPrintXY(Img,"^ TO RESUME",(Img->W-8*11)>>1,Img->H-Y-8,CLR_FG,CLR_BG);
+      ShadowPrintXY(Img,"<",X,(Img->H-8)>>1,CLR_FG,CLR_BG);
+      ShadowPrintXY(Img,">",Img->W-X-8,(Img->H-8)>>1,CLR_FG,CLR_BG);
 
       for(J=0;J<7;++J) P[J]=CLR_BG;
       for(J=1,P+=Img->L;J<RPL_SIGNSIZE-3;++J,P+=Img->L)

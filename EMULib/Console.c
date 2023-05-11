@@ -5,7 +5,7 @@
 /** This file contains platform-independent implementation  **/
 /** for the EMULib-based console.                           **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 2005-2018                 **/
+/** Copyright (C) Marat Fayzullin 2005-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -963,8 +963,23 @@ const char *CONFile(pixel FGColor,pixel BGColor,const char *Ext)
 
   do
   {
+#ifdef ANDROID
+    /* Open current directory, fall back to home directory if failed */
+    if(!(D=opendir(".")))
+    {
+      CONMsg(-1,-1,-1,-1,FGColor,BGColor,"Warning","Current folder unavailable.\0Changing to the app folder.\0");
+      if(GetHomeDir() && !chdir(GetHomeDir())) D=opendir(".");
+    }
+    /* Drop out if everything fails */
+    if(!D)
+    {
+      CONMsg(-1,-1,-1,-1,FGColor,BGColor,"Error","Folder unavailable.\0Sorry.\0");
+      break;
+    }
+#else
     /* Open current directory */
     if(!(D=opendir("."))) break;
+#endif
 
     /* Compute required buffer size size */
     for(rewinddir(D),I=256;(DP=readdir(D));I+=strlen(DP->d_name)+2);
@@ -1027,8 +1042,15 @@ const char *CONFile(pixel FGColor,pixel BGColor,const char *Ext)
       switch(*P)
       {
         case CON_FOLDER:
-          /* Folder selected, enter it */
-          if(chdir(P+1)) { /* Something went wrong */ }
+          /* Check that the folder is accessible */
+          if(!(D=opendir(P+1))) { /* Something went wrong */ }
+          else
+          {
+            /* Folder accessible, close it for now */
+            closedir(D);
+            /* Change to selected folder */
+            if(chdir(P+1)) { /* Something went wrong */ }
+          }
           break;
         case CON_FILE:
           /* File selected, return it */

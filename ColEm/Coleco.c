@@ -5,7 +5,7 @@
 /** This file contains implementation for the Coleco        **/
 /** specific hardware. Initialization code is also here.    **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 1994-2018                 **/
+/** Copyright (C) Marat Fayzullin 1994-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -60,6 +60,7 @@ byte Port53;                   /* SGM port 0x53 (memory)        */
 byte MegaPage;                 /* Current MegaROM page          */
 byte MegaSize;                 /* MegaROM size in 16kB pages    */
 byte MegaCart;                 /* MegaROM page at 8000h         */
+unsigned int LastCRC;          /* Last computed cartridge CRC   */
          
 byte ExitNow;                  /* 1: Exit the emulator          */
 byte AdamROMs;                 /* 1: All Adam ROMs are loaded   */ 
@@ -70,15 +71,19 @@ unsigned int SpinCount;        /* Spinner counters              */
 unsigned int SpinStep;         /* Spinner steps                 */
 unsigned int SpinState;        /* Spinner bit states            */
 
-char *SndName    = "LOG.MID";  /* Soundtrack log file           */
-char *StaName    = 0;          /* Emulation state save file     */
-char *SavName    = 0;          /* EEPROM data save file         */
-char *HomeDir    = 0;          /* Full path to home directory   */
-char *PrnName    = 0;          /* Printer redirection file      */
-FILE *PrnStream;
+const char *SndName = "LOG.MID"; /* Soundtrack log file         */
+const char *PalName = "ColEm.pal"; /* Default palette file      */
+const char *StaName = 0;         /* Emulation state save file   */
+const char *SavName = 0;         /* EEPROM data save file       */
+const char *HomeDir = 0;         /* Full path to home directory */
+const char *PrnName = 0;         /* Printer redirection file    */
+FILE *PrnStream = 0;
 
 byte CheatsON    = 0;          /* 1: Cheats are on              */
 int  CheatCount  = 0;          /* Number of cheats, <=MAXCHEATS */
+
+FDIDisk Disks[MAX_DISKS] = { 0 };  /* Adam disk drives          */
+FDIDisk Tapes[MAX_TAPES] = { 0 };  /* Adam tape drives          */
 
 /* Structure to store cheats */
 struct
@@ -94,6 +99,10 @@ struct
 static int ApplyCheats(void);
 /* Guess some hardware modes by ROM contents */
 static unsigned int GuessROM(const byte *ROM,unsigned int Size);
+/* Check if file has given extension */
+static int hasext(const char *FileName,const char *Ext);
+/* Find and load state based on the cartridge or disk file name */
+void FindState(const char *Name);
 /* Save/load EEPROM contents */
 static int SaveSAV(const char *FileName);
 static int LoadSAV(const char *FileName);
@@ -122,6 +131,31 @@ static int LoadSAV(const char *FileName);
 #define feof(F)         gzeof((gzFile)(F))
 #endif
 
+/** hasext() *************************************************/
+/** Check if file name has given extension.                 **/
+/*************************************************************/
+static int hasext(const char *FileName,const char *Ext)
+{
+  const char *P;
+  int J;
+
+  /* Start searching from the end, terminate at directory name */
+  for(P=FileName+strlen(FileName);(P>=FileName)&&(*P!='/')&&(*P!='\\');--P)
+  {
+    /* Locate start of the next extension */
+    for(--P;(P>=FileName)&&(*P!='/')&&(*P!='\\')&&(*P!=*Ext);--P);
+    /* If next extension not found, return FALSE */
+    if((P<FileName)||(*P=='/')||(*P=='\\')) return(0);
+    /* Compare with the given extension */
+    for(J=0;P[J]&&Ext[J]&&(toupper(P[J])==toupper(Ext[J]));++J);
+    /* If extension matches, return TRUE */
+    if(!Ext[J]&&(!P[J]||(P[J]==*Ext))) return(1);
+  }
+
+  /* Extensions do not match */
+  return(0);
+}
+
 /** gethex() *************************************************/
 /** Parse hexadecimal byte.                                 **/
 /*************************************************************/
@@ -131,9 +165,9 @@ static byte gethex(const char *S)
   const char *P;
   byte D;
 
-  P = strchr(Hex,S[0]);
+  P = strchr(Hex,toupper(S[0]));
   D = P? P-Hex:0;
-  P = strchr(Hex,S[1]);
+  P = strchr(Hex,toupper(S[1]));
   D = P? (D<<4)+(P-Hex):D;
 
   return(D);
@@ -194,6 +228,7 @@ int StartColeco(const char *Cartridge)
   MegaSize   = 2;
   MegaCart   = 0;
   EEPROMData = 0;
+  LastCRC    = 0;
 
   /* Set up CPU modes */
   CPU.TrapBadOps = Verbose&0x04;
@@ -262,8 +297,7 @@ int StartColeco(const char *Cartridge)
   }
 
   /* If not all Adam ROMs loaded, disable Adam */
-  AdamROMs=AdamROMs>=2;
-  if(!AdamROMs) Mode&=~CV_ADAM;
+  AdamROMs = AdamROMs>=2;
 
   /* Done loading ROMs */
   if(P && Verbose) printf("%s\n",P);
@@ -272,13 +306,13 @@ int StartColeco(const char *Cartridge)
   if(P) return(0);
 
   /* Open stream for a printer */
-  if(!PrnName) PrnStream=stdout;
-  else
-  {
-    if(Verbose) printf("Redirecting printer output to %s...",PrnName);
-    if(!(PrnStream=fopen(PrnName,"wb"))) PrnStream=stdout;
-    if(Verbose) printf(PrnStream==stdout? "FAILED\n":"OK\n");
-  }
+  if(Verbose)
+    printf("  Redirecting printer output to %s...OK\n",PrnName? PrnName:"STDOUT");
+  ChangePrinter(PrnName);
+
+  /* Initialize disk and tape drives */
+  for(J=0;J<MAX_DISKS;++J) Disks[J].Verbose=Verbose&0x20;
+  for(J=0;J<MAX_TAPES;++J) Tapes[J].Verbose=Verbose&0x40;
 
   /* Initialize MIDI sound logging */
   InitMIDI(SndName);
@@ -286,16 +320,23 @@ int StartColeco(const char *Cartridge)
   /* Reset system hardware */
   ResetColeco(Mode);
 
-  /* Load cartridge */
+  /* Set initial palette */
+  ChangePalette(Mode);
+
+  /* Try loading default palette file */
+  if(PalName)
+  {
+    if(Verbose) printf("  Opening %s...",PalName);
+    J = LoadPAL(PalName);
+    if(Verbose) printf("%s\n",J? "OK":"FAILED");
+  }
+
+  /* Load cartridge ROM, disk, or tape */
   if(Cartridge)
   {
     if(Verbose) printf("  Opening %s...",Cartridge);
-    J=LoadROM(Cartridge);
-    if(Verbose)
-    {
-      if(J) printf("%d bytes loaded...OK\n",J);
-      else  printf("FAILED\n");
-    }
+    J = LoadFile(Cartridge);
+    if(Verbose) printf("%s\n",J? "OK":"FAILED");
   }
 
   if(Verbose) printf("RUNNING ROM CODE...\n");
@@ -303,6 +344,33 @@ int StartColeco(const char *Cartridge)
 
   if(Verbose) printf("EXITED at PC = %04Xh.\n",J);
   return(1);
+}
+
+/** LoadFile() ***********************************************/
+/** Simple utility function to load cartridge, tape, or a   **/
+/** disk image, based on the file extension, etc.           **/
+/*************************************************************/
+int LoadFile(const char *FileName)
+{
+  /* Try loading as a disk */
+  if(hasext(FileName,".DSK")||hasext(FileName,".FDI"))
+    return(!!ChangeDisk(0,FileName));
+
+  /* Try loading as a cartridge */
+  if(hasext(FileName,".ROM")||hasext(FileName,".COL")||hasext(FileName,".CV")||hasext(FileName,".BIN"))
+    return(!!LoadROM(FileName));
+
+  /* Try loading as a tape */
+  if(hasext(FileName,".DDP")) return(!!ChangeTape(0,FileName));
+  /* Try loading as palette */
+  if(hasext(FileName,".PAL")) return(!!LoadPAL(FileName));
+  /* Try loading as cheats */
+  if(hasext(FileName,".CHT")) return(!!LoadCHT(FileName));
+  /* Try loading as state */
+  if(hasext(FileName,".STA")) return(!!LoadSTA(FileName));
+
+  /* Unknown file type */
+  return(0);
 }
 
 /** LoadROM() ************************************************/
@@ -313,7 +381,6 @@ int LoadROM(const char *Cartridge)
 {
   byte Buf[2],*P;
   int J,I,Size;
-  char *T;
   FILE *F;
 
   /* Open file */
@@ -396,6 +463,9 @@ int LoadROM(const char *Cartridge)
     CheatCount = 0;
   }
 
+  /* Save EEPROM/SRAM contents for the previous cartridge */
+  if(SavName) SaveSAV(SavName);
+
   /* Rewind file to the beginning */
   rewind(F);
 
@@ -408,27 +478,15 @@ int LoadROM(const char *Cartridge)
   /* Done with the file */
   fclose(F);
 
-  /* Save EEPROM contents for the previous cartridge */
-  if(SavName) SaveSAV(SavName);
+  /* Keep initial cartridge CRC (may change after SRAM writes) */
+  if(P==ROM_CARTRIDGE) LastCRC=CartCRC();
 
   /* Reset hardware, guessing some hardware modes */
-  ResetColeco((Mode&~(CV_EEPROM|CV_SRAM))|GuessROM(P,J));
+  I = P==ROM_CARTRIDGE? (Mode&~CV_ADAM):(Mode|CV_ADAM);
+  ResetColeco((I&~(CV_EEPROM|CV_SRAM))|GuessROM(P,J));
 
-  /* Free previous file names */
-  if(StaName) free(StaName);
-  if(SavName) free(SavName);
-
-  /* Generate save file name and try loading it */
-  if((SavName=MakeFileName(Cartridge,".sav"))) LoadSAV(SavName);
-
-  /* Generate state file name and try loading it */
-  if((StaName=MakeFileName(Cartridge,".sta"))) LoadSTA(StaName);
-
-  /* Generate cheat file name and try loading it */
-  if((T=MakeFileName(Cartridge,".cht"))) { LoadCHT(T);free(T); }
-
-  /* Generate palette file name and try loading it */
-  if((T=MakeFileName(Cartridge,".pal"))) { LoadPAL(T);free(T); }
+  /* Load state, save file, palette, cheats, etc. */
+  FindState(Cartridge);
 
   /* Done */
   return(J);
@@ -481,6 +539,10 @@ int LoadPAL(const char *Name)
 
   if(!(F=fopen(Name,"rb"))) return(0);
 
+  /* Start with default palette */
+  ChangePalette(Mode);
+
+  /* Parse palette entries */
   for(J=0;(J<16)&&fgets(S,sizeof(S),F);++J)
   {
     /* Skip white space and optional '#' character */
@@ -492,6 +554,7 @@ int LoadPAL(const char *Name)
     if(T-P==6) VDP.XPal[J]=SetColor(J,gethex(P),gethex(P+2),gethex(P+4));
   }
 
+  /* Palette loaded */
   fclose(F);
   return(J);
 }
@@ -514,19 +577,33 @@ int LoadPAL(const char *Name)
 #undef feof
 #endif
 
+#if defined(ANDROID)
+/* On Android, may need to open files for writing at an */
+/* alternative location, if the requested location is   */
+/* not available. OpenRealFile() WILL NOT USE ZLIB.     */
+#define fopen OpenRealFile
+#endif
+
 /** TrashColeco() ********************************************/
 /** Free memory allocated by StartColeco().                 **/
 /*************************************************************/
 void TrashColeco(void)
 {
+  int J;
+
   /* Save EEPROM contents */
   if(SavName) SaveSAV(SavName);
+
+  /* Eject all disks and tapes, close printer output */
+  for(J=0;J<MAX_DISKS;++J) ChangeDisk(J,0);
+  for(J=0;J<MAX_TAPES;++J) ChangeTape(J,0);
+  ChangePrinter(0);
 
   /* Free all memory and resources */
   if(RAM)        { free(RAM);RAM=0; }
   if(EEPROMData) { free(EEPROMData);EEPROMData=0; }
-  if(StaName)    { free(StaName);StaName=0; }
-  if(SavName)    { free(SavName);SavName=0; }
+  if(StaName)    { free((char *)StaName);StaName=0; }
+  if(SavName)    { free((char *)SavName);SavName=0; }
 
   /* Close MIDI sound log */
   TrashMIDI();
@@ -559,7 +636,7 @@ void SetMemory(byte NewPort60,byte NewPort20,byte NewPort53)
       ROMPage[2] = ROM_EOS;
       ROMPage[3] = ROM_EOS;
     }
-    else if(Mode&CV_ADAM)
+    else
     {
       // Normal configuration
       ROMPage[0] = RAM+((int)(NewPort60&0x03)<<15);
@@ -655,6 +732,7 @@ void SetMemory(byte NewPort60,byte NewPort20,byte NewPort53)
 unsigned int CartCRC(void)
 {
   unsigned int I,J;
+
   for(J=I=0;J<0x8000;++J) I+=ROM_CARTRIDGE[J];
   return(I);
 }
@@ -665,7 +743,7 @@ unsigned int CartCRC(void)
 /*************************************************************/
 int ResetColeco(int NewMode)
 {
-  int I,J;
+  int I;
 
   /* Disable Adam if not all ROMs are loaded */
   if(!AdamROMs) NewMode&=~CV_ADAM;
@@ -710,12 +788,6 @@ int ResetColeco(int NewMode)
   Reset24XX(&EEPROM,EEPROMData,I|(Verbose&0x08? C24XX_DEBUG:0));
   /* Reset Z80 CPU */
   ResetZ80(&CPU);
-
-  /* Set up the palette */
-  I = Mode&CV_PALETTE;
-  I = I==CV_PALETTE0? 0:I==CV_PALETTE1? 16:I==CV_PALETTE2? 32:0;
-  for(J=0;J<16;++J,++I)
-    VDP.XPal[J]=SetColor(J,Palette9918[I].R,Palette9918[I].G,Palette9918[I].B);
 
   /* Return new modes */
   return(Mode);
@@ -899,7 +971,7 @@ void OutZ80(register word Port,register byte Value)
       break;
 
     case 0x40:
-      if((Mode&CV_ADAM)&&(Port==0x40)) fputc(Value,PrnStream);
+      if((Mode&CV_ADAM)&&(Port==0x40)) Printer(Value);
       if(Mode&CV_SGM)
       {
         if(Port==0x53)      SetMemory(Port60,Port20,Value);
@@ -960,7 +1032,24 @@ word LoopZ80(Z80 *R)
 
   /* Refresh VDP */
   if(Loop9918(&VDP)) R->IRequest=INT_NMI;
-  
+
+  /* Every few scanlines, refresh sound */
+  if(!(VDP.Line&0x07))
+  {
+    /* Compute number of microseconds */
+    int J = (unsigned int)(1000000L*(CPU_HPERIOD<<3)/CPU_CLOCK);
+
+    /* Only hit drums once in a frame */
+    int D = !VDP.Line && (Mode&CV_DRUMS);
+
+    /* Update AY8910 state */
+    Loop8910(&AYPSG,J);
+
+    /* Flush changes to sound channels */
+    Sync76489(&PSG,SN76489_FLUSH|(D? SN76489_DRUMS:0));
+    Sync8910(&AYPSG,AY8910_FLUSH|(D? AY8910_DRUMS:0));
+  }
+
   /* Drop out unless end of screen is reached */
   if(VDP.Line!=TMS9918_END_LINE) return(R->IRequest);
 
@@ -1012,10 +1101,6 @@ word LoopZ80(Z80 *R)
 
   /* Count ticks for MIDI ouput */
   MIDITicks(1000/(Mode&CV_PAL? TMS9929_FRAMES:TMS9918_FRAMES));
-
-  /* Flush any accumulated sound changes */
-  Sync76489(&PSG,SN76489_FLUSH|(Mode&CV_DRUMS? SN76489_DRUMS:0));
-  Sync8910(&AYPSG,AY8910_FLUSH|(Mode&CV_DRUMS? AY8910_DRUMS:0));
 
   /* Apply RAM-based cheats */
   if(CheatsON&&CheatCount) ApplyCheats();
@@ -1307,4 +1392,157 @@ unsigned int GuessROM(const byte *ROM,unsigned int Size)
 
   /* Return whatever has been guessed */
   return(Guess);
+}
+
+/** ChangePalette() ******************************************/
+/** Change colors to one of CV_PALETTE* values, without     **/
+/** resetting emulation.                                    **/
+/*************************************************************/
+void ChangePalette(unsigned int N)
+{
+  int J;
+
+  /* Modify running modes */
+  Mode = (Mode&~CV_PALETTE) | (N&CV_PALETTE);
+
+  /* Change colors */
+  N = N&CV_PALETTE;
+  N = N==CV_PALETTE0? 0:N==CV_PALETTE1? 16:N==CV_PALETTE2? 32:0;
+  for(J=0;J<16;++J,++N)
+    VDP.XPal[J]=SetColor(J,Palette9918[N].R,Palette9918[N].G,Palette9918[N].B);
+}
+
+/** ChangePrinter() ******************************************/
+/** Change printer output to a given file. The previous     **/
+/** file is closed. ChangePrinter(0) redirects output to    **/
+/** stdout.                                                 **/
+/*************************************************************/
+void ChangePrinter(const char *FileName)
+{
+  if(PrnStream&&(PrnStream!=stdout)) fclose(PrnStream);
+  PrnStream = 0;
+}
+
+/** Printer() ************************************************/
+/** Send a character to the printer.                        **/
+/*************************************************************/
+void Printer(byte V)
+{
+  if(!PrnStream)
+  {
+    PrnStream = PrnName?   fopen(PrnName,"ab"):0;
+    PrnStream = PrnStream? PrnStream:stdout;
+  }
+
+  fputc(V,PrnStream);
+}
+
+/** ChangeDisk() *********************************************/
+/** Change disk image in a given drive. Closes current disk **/
+/** image if Name=0 was given. Creates a new disk image if  **/
+/** Name="" was given. Returns 1 on success or 0 on failure.**/
+/*************************************************************/
+byte ChangeDisk(byte N,const char *FileName)
+{
+  int NeedState;
+  byte *P;
+
+  /* We only have MAX_DISKS drives */
+  if(N>=MAX_DISKS) return(0);
+
+  /* Load state when inserting first disk into drive A: */
+  NeedState = FileName && *FileName && !N && !Disks[N].Data;
+
+  /* Eject disk if requested */
+  if(!FileName) { EjectFDI(&Disks[N]);return(1); }
+
+  /* Drop out if cannot reset to Adam mode */
+  if(NeedState && !AdamROMs) return(0);
+
+  /* If FileName not empty, try loading disk image */
+  if(*FileName && LoadFDI(&Disks[N],FileName,FMT_ADMDSK))
+  {
+    /* If first disk... */
+    if(NeedState)
+    {
+      /* Reset hardware, enabling Adam mode */
+      ResetColeco(Mode|CV_ADAM);
+      /* Try loading state, etc. */
+      FindState(FileName);
+    }
+    /* Done */
+    return(1);
+  }
+
+  /* If no existing file, create a new 160kB disk image */
+  P = FormatFDI(&Disks[N],FMT_ADMDSK);
+  return(!!P);
+}
+
+/** ChangeTape() *********************************************/
+/** Change tape image in a given drive. Closes current tape **/
+/** image if Name=0 was given. Creates a new tape image if  **/
+/** Name="" was given. Returns 1 on success or 0 on failure.**/
+/*************************************************************/
+byte ChangeTape(byte N,const char *FileName)
+{
+  int NeedState;
+  byte *P;
+
+  /* We only have MAX_TAPES drives */
+  if(N>=MAX_TAPES) return(0);
+
+  /* Load state when inserting first tape into drive A: */
+  NeedState = FileName && *FileName && !N && !Tapes[N].Data;
+
+  /* Eject disk if requested */
+  if(!FileName) { EjectFDI(&Tapes[N]);return(1); }
+
+  /* Drop out if cannot reset to Adam mode */
+  if(NeedState && !AdamROMs) return(0);
+
+  /* If FileName not empty, try loading tape image */
+  if(*FileName && LoadFDI(&Tapes[N],FileName,FMT_DDP))
+  {
+    /* If first tape... */
+    if(NeedState)
+    {
+      /* Reset hardware, enabling Adam mode */
+      ResetColeco(Mode|CV_ADAM);
+      /* Try loading state, etc. */
+      FindState(FileName);
+    }
+    /* Done */
+    return(1);
+  }
+
+  /* If no existing file, create a new 256kB tape image */
+  P = FormatFDI(&Tapes[N],FMT_DDP);
+  return(!!P);
+}
+
+/** FindState() **********************************************/
+/** Compute state file name corresponding to given filename **/
+/** and try loading state. Returns 1 on success, 0 on       **/
+/** failure.                                                **/
+/*************************************************************/
+void FindState(const char *Name)
+{
+  char *T;
+
+  /* Free previous file names */
+  if(StaName) free((char *)StaName);
+  if(SavName) free((char *)SavName);
+
+  /* Generate save file name and try loading it */
+  if((SavName=MakeFileName(Name,".sav"))) LoadSAV(SavName);
+
+  /* Generate state file name and try loading it */
+  if((StaName=MakeFileName(Name,".sta"))) LoadSTA(StaName);
+
+  /* Generate cheat file name and try loading it */
+  if((T=MakeFileName(Name,".cht"))) { LoadCHT(T);free(T); }
+
+  /* Generate palette file name and try loading it */
+  if((T=MakeFileName(Name,".pal"))) { LoadPAL(T);free(T); }
 }

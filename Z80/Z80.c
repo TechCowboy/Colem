@@ -7,7 +7,7 @@
 /** LoopZ80(), and PatchZ80() functions to accomodate the   **/
 /** emulated machine's architecture.                        **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 1994-2018                 **/
+/** Copyright (C) Marat Fayzullin 1994-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -668,8 +668,9 @@ word RunZ80(Z80 *R)
     /* Turn tracing on when reached trap address */
     if(R->PC.W==R->Trap) R->Trace=1;
     /* Call single-step debugger, exit if requested */
-    if(R->Trace)
+    if(R->Trace){
       if(!DebugZ80(R)) return(R->PC.W);
+}
 #endif
 
     /* Read opcode and count cycles */

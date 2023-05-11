@@ -6,7 +6,7 @@
 /** and functions needed to log soundtrack into a MIDI      **/
 /** file. See Sound.h for declarations.                     **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 1996-2018                 **/
+/** Copyright (C) Marat Fayzullin 1996-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -18,6 +18,13 @@
 
 #if defined(UNIX) || defined(MAEMO) || defined(STMP3700) || defined(NXC2600) || defined(ANDROID)
 #include <unistd.h>
+#endif
+
+#if defined(ANDROID)
+/* On Android, may need to open files for writing at an */
+/* alternative location, if the requested location is   */
+/* not available. OpenRealFile() WILL NOT USE ZLIB.     */
+#define fopen OpenRealFile
 #endif
 
 typedef unsigned char byte;
@@ -455,22 +462,25 @@ void MIDISound(int Channel,int Freq,int Volume)
   if(!Logging||!MIDIOut||(Channel>=MIDI_CHANNELS-1)||(Channel<0)) return;
   /* Frequency must be in range */
   if((Freq<MIDI_MINFREQ)||(Freq>MIDI_MAXFREQ)) Freq=0;
-  /* Volume must be in range */
-  if(Volume<0) Volume=0; else if(Volume>255) Volume=255;
   /* Instrument number must be valid */
   if(MidiCH[Channel].Type<0) Freq=0;
+
+  /* MIDI sound volume values are in 0..127 range */
+  /* SND_TRIANGLE has 1/2 volume of SND_MELODIC   */
+  /* SND_WAVE may have different effective volume */
+  Volume =
+    MidiCH[Channel].Type==SND_TRIANGLE? ((Volume+3)>>2)
+  : MidiCH[Channel].Type==SND_WAVE?     (((Volume*MidiCH[Channel].Power)+511)>>9)
+  : ((Volume+1)>>1);
+
+  /* Volume must be in range */
+  if(Volume<0) Volume=0; else if(Volume>127) Volume=127;
 
   if(!Volume||!Freq) NoteOff(Channel);
   else
   {
-    /* SND_TRIANGLE has 1/2 volume of SND_MELODIC   */
-    /* SND_WAVE may have different effective volume */
-    Volume = MidiCH[Channel].Type==SND_TRIANGLE? (Volume>>1)
-           : MidiCH[Channel].Type==SND_WAVE?     ((Volume*MidiCH[Channel].Power)>>8)
-           : Volume;
-
     /* Compute MIDI note parameters */
-    MIDIVolume = Volume>>1;
+    MIDIVolume = Volume;
     MIDINote   = Freqs[Freq/3].Note;
     MIDIWheel  = Freqs[Freq/3].Wheel;
 
@@ -702,6 +712,8 @@ void RenderAudio(int *Wave,unsigned int Samples)
           K  = WaveCH[J].Rate>0?
                (SndRate<<15)/WaveCH[J].Freq/WaveCH[J].Rate
              : (SndRate<<15)/WaveCH[J].Freq/WaveCH[J].Length;
+          /* Do not allow high frequencies (GBC Frogger) */
+          if(K<0x8000) break;
           L1 = WaveCH[J].Pos%WaveCH[J].Length;
           L2 = WaveCH[J].Count;
           A1 = WaveCH[J].Data[L1]*V;

@@ -5,7 +5,7 @@
 /** This file contains emulation for the 24cXX series of    **/
 /** serial EEPROMs. See C24XX.c for the actual code.        **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 2017-2018                 **/
+/** Copyright (C) Marat Fayzullin 2017-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -60,17 +60,21 @@ typedef unsigned char byte;
 typedef unsigned short word;
 #endif
 
+#pragma pack(4)
 typedef struct
 {
   unsigned int Flags; /* Chip type, etc  */
   unsigned int Addr;  /* Current address */
-  byte *Data;         /* Pointer to data */
+  int  Rsrvd;         /* Reserved field  */
   byte State;         /* Current state   */
   byte Cmd;           /* Current command */
   word Bits;          /* In/out bits     */
   byte Pins;          /* Input pins      */
   byte Out;           /* Output pins     */
+  /*--- Save24XX() will save state above this line ---*/
+  byte *Data;         /* Pointer to data */
 } C24XX;
+#pragma pack()
 
 /** Reset24XX ************************************************/
 /** Reset the 24xx chip.                                    **/
@@ -93,6 +97,20 @@ byte Read24XX(C24XX *D);
 /** Return the size of given chip model in bytes.           **/
 /*************************************************************/
 unsigned int Size24XX(C24XX *D);
+
+/** Save24XX() ***********************************************/
+/** Save 24xx chip state to a given buffer of given maximal **/
+/** size. Returns number of bytes saved or 0 on failure.    **/
+/** EEPROM contents are not saved.                          **/
+/*************************************************************/
+unsigned int Save24XX(const register C24XX *D,byte *Buf,unsigned int Size);
+
+/** Load24XX() ***********************************************/
+/** Load 24xx chip state from given buffer of given maximal **/
+/** size. Returns number of bytes loaded or 0 on failure.   **/
+/** EEPROM contents are not loaded.                         **/
+/*************************************************************/
+unsigned int Load24XX(register C24XX *D,byte *Buf,unsigned int Size);
 
 #ifdef __cplusplus
 }

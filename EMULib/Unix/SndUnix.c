@@ -5,7 +5,7 @@
 /** This file contains Unix-dependent sound implementation  **/
 /** for the emulation library.                              **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 1996-2018                 **/
+/** Copyright (C) Marat Fayzullin 1996-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -150,6 +150,7 @@ static void *ThrHandler(void *Arg)
     if(RPtr>=SndSize) RPtr=0;
   }
 
+  Thr = 0;
   return(0);
 }
 
@@ -272,6 +273,11 @@ void TrashAudio(void)
   SndRate     = 0;
   AudioPaused = 0;
 
+  /* Flush PulseAudio */
+#if defined(PULSE_AUDIO)
+  if(SoundFD!=SOUNDFD_INVALID) pa_simple_flush(SoundFD,0);
+#endif
+
   /* Wait for audio thread to finish */
   if(Thr) pthread_join(Thr,0);
 
@@ -279,7 +285,7 @@ void TrashAudio(void)
   if(SoundFD!=SOUNDFD_INVALID)
   {
 #if defined(PULSE_AUDIO)
-    if(SoundFD) pa_simple_free(SoundFD);
+    pa_simple_free(SoundFD);
 #elif defined(ESD_AUDIO)
     esd_close(SoundFD);
 #elif defined(SUN_AUDIO)

@@ -5,7 +5,7 @@
 /** This file declares functions that simulate joystick and **/
 /** dialpad with the touch screen.                          **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 2008-2018                 **/
+/** Copyright (C) Marat Fayzullin 2008-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/

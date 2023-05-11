@@ -5,7 +5,7 @@
 /** This file contains Unix-dependent subroutines and       **/
 /** drivers. It includes screen drivers via Display.h.      **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 1994-2018                 **/
+/** Copyright (C) Marat Fayzullin 1994-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -36,7 +36,7 @@ int SndVolume;             /* Master volume for audio        */
 int Keypad;                /* Keypad key being pressed       */
 Image ScrBuf;              /* Display buffer                 */
 
-char *Title = "ColEm 4.6";
+char *Title = "ColEm 5.6";
 
 void HandleKeys(unsigned int Key);
 
@@ -76,7 +76,7 @@ int InitMachine(void)
 
   /* Initialize sound */
   InitSound(UseSound,150);
-  SndSwitch=(1<<SN76489_CHANNELS)-1;
+  SndSwitch=(1<<(SN76489_CHANNELS+AY8910_CHANNELS))-1;
   SndVolume=255/SN76489_CHANNELS;
   SetChannels(SndVolume,SndSwitch);
 
@@ -209,13 +209,21 @@ int SetColor(byte N,byte R,byte G,byte B)
 /*************************************************************/
 void HandleKeys(unsigned int Key)
 {
-  unsigned int J;
+  unsigned int Mod,IsAdam;
 
+  /* Do not enter this function twice */
   if(InMenu||CPU.Trace) return;
 
-  if(Key&CON_RELEASE)
+  /* Separate key codes and modifiers */
+  Mod = Key & ~CON_KEYCODE;
+  Key = Key & CON_KEYCODE;
+
+  /* When in Adam mode, use CTRL key for special functions */
+  IsAdam = (Mode&CV_ADAM) && !(Mod&CON_CONTROL);
+
+  if(Mod&CON_RELEASE)
   {
-    switch(Key&CON_KEYCODE)
+    switch(Key)
     {
       case XK_F9:
       case XK_Page_Up:
@@ -243,65 +251,107 @@ void HandleKeys(unsigned int Key)
   else
   {
     /* Cancel replay when a key is pressed */
-    J = Key&CON_KEYCODE;
-    if((J!=XK_F9)&&(J!=XK_Page_Up)&&(J!=XK_Left)&&(J!=XK_Right)&&(J!=XK_Up)) RPLPlay(RPL_OFF);
+    if((Key!=XK_F9)&&(Key!=XK_Page_Up)&&(Key!=XK_Left)&&(Key!=XK_Right)&&(Key!=XK_Up)) RPLPlay(RPL_OFF);
 
-    switch(Key&CON_KEYCODE)
+    switch(Key)
     {
-#ifdef DEBUG
       case XK_F1:
-        CPU.Trace=1;
-        break;
+#ifdef DEBUG
+        if(IsAdam) PutKBD(Mod|KEY_F1); else CPU.Trace=1;
+#else
+        PutKBD(Mod|KEY_F1);
 #endif
-      case XK_F2: MIDILogging(MIDI_TOGGLE);break;
-      case XK_F3: Mode^=CV_AUTOFIRER;break;
-      case XK_F4: Mode^=CV_AUTOFIREL;break;
+        break;
+
+      case XK_F2:
+        if(IsAdam) PutKBD(Mod|KEY_F2); else MIDILogging(MIDI_TOGGLE);
+        break;
+
+      case XK_F3:
+        if(IsAdam) PutKBD(Mod|KEY_F3); else Mode^=CV_AUTOFIRER;
+        break;
+
+      case XK_F4:
+        if(IsAdam) PutKBD(Mod|KEY_F4); else Mode^=CV_AUTOFIREL;
+        break;
+
       case XK_F5:
-        InMenu=1;
-        SetChannels(0,0);
-        MenuColeco();
-        SetChannels(SndVolume,SndSwitch);
-        InMenu=0;
+        if(IsAdam) PutKBD(Mod|KEY_F5);
+        else
+        {
+          InMenu=1;
+          SetChannels(0,0);
+          MenuColeco();
+          SetChannels(SndVolume,SndSwitch);
+          InMenu=0;
+        }
         break;
+
       case XK_F6:
-        LoadSTA(StaName? StaName:"DEFAULT.STA");
-        RPLPlay(RPL_OFF);
+        if(IsAdam) PutKBD(Mod|KEY_F6);
+        else
+        {
+          LoadSTA(StaName? StaName:"DEFAULT.STA");
+          RPLPlay(RPL_OFF);
+        }
         break;
+
       case XK_F7:
-        SaveSTA(StaName? StaName:"DEFAULT.STA");
+        if(IsAdam) PutKBD(Mod|KEY_UNDO); else SaveSTA(StaName? StaName:"DEFAULT.STA");
         break;
+
       case XK_F8:
-        RPLPlay(RPL_RESET);
+        if(IsAdam) PutKBD(Mod|KEY_WILDCARD); else RPLPlay(RPL_RESET);
         break;
+
       case XK_F9:
       case XK_Page_Up:
-        if(!FastForward)
+        if(IsAdam && (Key!=XK_F9)) PutKBD(Mod|KEY_MOVE);
+        else if(!FastForward)
         {
           SetEffects(UseEffects&~EFF_SYNC);
           FastForward=UPeriod;
           VDP.DrawFrames=UPeriod=10;
         }
         break;
-      case XK_F11:
-        ResetColeco(Mode);
-        RPLPlay(RPL_OFF);
-        break;
+
       case XK_Escape:
-      case XK_F12:
-        ExitNow=1;
+        if(IsAdam) PutKBD(Mod|KEY_ESC); else ExitNow=1;
         break;
-      case '0':     Keypad|=JST_0;break;
-      case '1':     Keypad|=JST_1;break;
-      case '2':     Keypad|=JST_2;break;
-      case '3':     Keypad|=JST_3;break;
-      case '4':     Keypad|=JST_4;break;
-      case '5':     Keypad|=JST_5;break;
-      case '6':     Keypad|=JST_6;break;
-      case '7':     Keypad|=JST_7;break;
-      case '8':     Keypad|=JST_8;break;
-      case '9':     Keypad|=JST_9;break;
-      case '-':     Keypad|=JST_STAR;break;
-      case '=':     Keypad|=JST_POUND;break;
+
+      case XK_F11:  ResetColeco(Mode);RPLPlay(RPL_OFF);break;
+      case XK_F12:  ExitNow=1;break;
+      case '0':     PutKBD(Mod|'0');Keypad|=JST_0;break;
+      case '1':     PutKBD(Mod|'1');Keypad|=JST_1;break;
+      case '2':     PutKBD(Mod|'2');Keypad|=JST_2;break;
+      case '3':     PutKBD(Mod|'3');Keypad|=JST_3;break;
+      case '4':     PutKBD(Mod|'4');Keypad|=JST_4;break;
+      case '5':     PutKBD(Mod|'5');Keypad|=JST_5;break;
+      case '6':     PutKBD(Mod|'6');Keypad|=JST_6;break;
+      case '7':     PutKBD(Mod|'7');Keypad|=JST_7;break;
+      case '8':     PutKBD(Mod|'8');Keypad|=JST_8;break;
+      case '9':     PutKBD(Mod|'9');Keypad|=JST_9;break;
+      case '-':     PutKBD(Mod|'-');Keypad|=JST_STAR;break;
+      case '=':     PutKBD(Mod|'=');Keypad|=JST_POUND;break;
+
+      case XK_BackSpace: PutKBD(Mod|KEY_BS);break;
+      case XK_Return:    PutKBD(Mod|KEY_ENTER);break;
+      case XK_Tab:       PutKBD(Mod|KEY_TAB);break;
+      case XK_Up:        PutKBD(Mod|KEY_UP);break;
+      case XK_Down:      PutKBD(Mod|KEY_DOWN);break;
+      case XK_Left:      PutKBD(Mod|KEY_LEFT);break;
+      case XK_Right:     PutKBD(Mod|KEY_RIGHT);break;
+      case XK_Home:      PutKBD(Mod|KEY_HOME);break;
+      case XK_End:       PutKBD(Mod|KEY_CLEAR);break;
+      case XK_Insert:    PutKBD(Mod|KEY_INS);break;
+      case XK_Delete:    PutKBD(Mod|KEY_DEL);break;
+      case XK_Page_Down: PutKBD(Mod|KEY_STORE);break;
+      case XK_Print:     PutKBD(Mod|KEY_PRINT);break;
+
+      default:
+        /* Assume any key in 0x00..0x7E range an ASCII code */
+        if(Key<='~') PutKBD(Key|Mod);
+        break;
     }
   }
 }

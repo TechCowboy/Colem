@@ -5,7 +5,7 @@
 /** This file contains standard communication routines for  **/
 /** Unix using TCP/IP via sockets.                          **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 1997-2018                 **/
+/** Copyright (C) Marat Fayzullin 1997-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/

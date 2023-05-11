@@ -7,7 +7,7 @@
 /** the platform-dependent functions that know where to get **/
 /** pen coordinates from and where to draw pen cues to.     **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 2008-2018                 **/
+/** Copyright (C) Marat Fayzullin 2008-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -897,13 +897,14 @@ unsigned int RenderVideo(Image *OutImg,Image *CueImg,int Effects,int PenKey,int 
     CropImage(&TmpImg,OutImg,(OutImg->W-DW)>>1,(OutImg->H-DH)>>1,DW,DH);
     switch(J)
     {
+      case EFF_HQ4X:
       case EFF_2XSAI:   SoftenImage(&TmpImg,VideoImg,X,Y,W,H);break;
       case EFF_EPX:     SoftenEPX(&TmpImg,VideoImg,X,Y,W,H);break;
       case EFF_EAGLE:   SoftenEAGLE(&TmpImg,VideoImg,X,Y,W,H);break;
       case EFF_SCALE2X: SoftenSCALE2X(&TmpImg,VideoImg,X,Y,W,H);break;
-      case EFF_NEAREST: ScaleImage(&TmpImg,VideoImg,X,Y,W,H);break;
-      case EFF_HQ4X:
-      default:          SoftenImage(&TmpImg,VideoImg,X,Y,W,H);break;
+      case EFF_LINEAR:  InterpolateImage(&TmpImg,VideoImg,X,Y,W,H);break;
+      case EFF_NEAREST: 
+      default:          ScaleImage(&TmpImg,VideoImg,X,Y,W,H);break;
     }
   }
   /* EFF_SCALE: Scale image to the screen size */
@@ -1013,7 +1014,7 @@ unsigned int RenderVideo(Image *OutImg,Image *CueImg,int Effects,int PenKey,int 
   /* Show framerate if requested */
   if((Effects&EFF_SHOWFPS)&&(FrameRate>0))
   {
-    char S[8];
+    char S[16];
     sprintf(S,"%dfps",FrameRate);
     PrintXY2(OutImg,S,((OutImg->W-DW)>>1)+8,((OutImg->H-DH)>>1)+8,CLR_FPS);
   }

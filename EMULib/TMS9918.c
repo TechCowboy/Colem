@@ -6,7 +6,7 @@
 /** produced by Texas Instruments. See TMS9918.h for        **/
 /** declarations.                                           **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 1996-2018                 **/
+/** Copyright (C) Marat Fayzullin 1996-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -265,8 +265,12 @@ byte Loop9918(TMS9918 *VDP)
 
   /* If refreshing display area, call scanline handler */
   if((VDP->Line>=TMS9918_START_LINE)&&(VDP->Line<TMS9918_END_LINE))
+  {
     if(VDP->UCount>=100)
       Screen9918[VDP->Mode].LineHandler(VDP,VDP->Line-TMS9918_START_LINE);
+    else
+      ScanSprites(VDP,VDP->Line-TMS9918_START_LINE,0);
+  }
 
   /* If time for VBlank... */
   if(VDP->Line==TMS9918_END_LINE)
@@ -365,6 +369,132 @@ byte RdData9918(TMS9918 *VDP)
   return(J);
 }
 
+/** Save9918() ***********************************************/
+/** Save TMS9918 state to a given buffer of given maximal   **/
+/** size. Returns number of bytes saved or 0 on failure.    **/
+/*************************************************************/
+unsigned int Save9918(const TMS9918 *VDP,byte *Buf,unsigned int Size)
+{
+  unsigned int N = (const byte *)&(VDP->XBuf) - (const byte *)VDP;
+  TMS9918 TMP;
+
+  /* Must have enough bytes */
+  if(N>Size) return(0);
+
+  /* Fill outdated fields for backward compatibility */
+  TMP = *VDP;
+  TMP.Reserved1    = 0;
+  TMP.Reserved2[0] = TMP.ChrTab-TMP.VRAM;
+  TMP.Reserved2[1] = TMP.ChrGen-TMP.VRAM;
+  TMP.Reserved2[2] = TMP.SprTab-TMP.VRAM;
+  TMP.Reserved2[3] = TMP.SprGen-TMP.VRAM;
+  TMP.Reserved2[4] = TMP.ColTab-TMP.VRAM;
+
+  memcpy(Buf,&TMP,N);
+  return(N);
+}
+
+/** Load9918() ***********************************************/
+/** Load TMS9918 state from a given buffer of given maximal **/
+/** size. Returns number of bytes loaded or 0 on failure.   **/
+/*************************************************************/
+unsigned int Load9918(TMS9918 *VDP,byte *Buf,unsigned int Size)
+{
+  unsigned int N = (const byte *)&(VDP->XBuf) - (const byte *)VDP;
+  int XPal[16],Width,Height,DrawFrames;
+  byte OwnXBuf;
+
+  /* Must have enough bytes */
+  if(N>Size) return(0);
+
+  /* Preserve palette, etc */
+  memcpy(XPal,VDP->XPal,sizeof(XPal));
+  DrawFrames = VDP->DrawFrames;
+  OwnXBuf    = VDP->OwnXBuf;
+  Width      = VDP->Width;
+  Height     = VDP->Height;
+
+  /* Load VDP state */
+  memcpy(VDP,Buf,N);
+
+  /* Restore palette, etc */
+  memcpy(VDP->XPal,XPal,sizeof(VDP->XPal));
+  VDP->DrawFrames = DrawFrames;
+  VDP->OwnXBuf    = OwnXBuf;
+  VDP->Width      = Width;
+  VDP->Height     = Height;
+
+  /* Restore table addresses */
+  VDP->ChrTab = VDP->VRAM + VDP->Reserved2[0] - VDP->Reserved1;
+  VDP->ChrGen = VDP->VRAM + VDP->Reserved2[1] - VDP->Reserved1;
+  VDP->SprTab = VDP->VRAM + VDP->Reserved2[2] - VDP->Reserved1;
+  VDP->SprGen = VDP->VRAM + VDP->Reserved2[3] - VDP->Reserved1;
+  VDP->ColTab = VDP->VRAM + VDP->Reserved2[4] - VDP->Reserved1;
+
+  /* Update foreground/background colors */
+  Write9918(VDP,7,VDP->R[7]);
+
+  /* Done */
+  return(N);
+}
+
+/** ScanSprites() ********************************************/
+/** Compute bitmask of sprites shown in a given scanline.   **/
+/** Returns the first sprite to show or -1 if none shown.   **/
+/** Also updates 5th sprite fields in the status register.  **/
+/*************************************************************/
+int ScanSprites(register TMS9918 *VDP,register byte Y,unsigned int *Mask)
+{
+  static const byte SprHeights[4] = { 8,16,16,32 };
+  register byte OH,IH,*AT;
+  register int L,K,C1,C2;
+  register unsigned int M;
+
+  /* No 5th sprite yet */
+  VDP->Status &= ~(TMS9918_STAT_5THNUM|TMS9918_STAT_5THSPR);
+
+  /* Must have MODE1+ and screen enabled */
+  if(!VDP->Mode || !TMS9918_ScreenON(VDP))
+  {
+    if(Mask) *Mask=0;
+    return(-1);
+  }
+
+  OH = SprHeights[VDP->R[1]&0x03];
+  IH = SprHeights[VDP->R[1]&0x02];
+  AT = VDP->SprTab;
+  C1 = VDP->MaxSprites+1;
+  C2 = 5;
+  M  = 0;
+
+  for(L=0;L<32;++L,AT+=4)
+  {
+    K=AT[0];             /* K = sprite Y coordinate */
+    if(K==208) break;    /* Iteration terminates if Y=208 */
+    if(K>256-IH) K-=256; /* Y coordinate may be negative */
+
+    /* Mark all valid sprites with 1s, break at MaxSprites */
+    if((Y>K)&&(Y<=K+OH))
+    {
+      /* If we exceed four sprites per line, set 5th sprite flag */
+      if(!--C2) VDP->Status|=TMS9918_STAT_5THSPR|L;
+
+      /* If we exceed maximum number of sprites per line, stop here */
+      if(!--C1) break;
+
+      /* Mark sprite as ready to draw */
+      M|=(1<<L);
+    }
+  }
+
+  /* Set last checked sprite number (5th sprite, or Y=208, or sprite #31) */
+  if(C2>0) VDP->Status |= L<32? L:31;
+
+  /* Return first shown sprite and bit mask of shown sprites */
+  if(Mask) *Mask=M;
+  return(L-1);
+}
+
 /** CheckSprites() *******************************************/
 /** This function is periodically called to check for the   **/
 /** sprite collisions and return 1 if collision has occured **/
@@ -372,12 +502,14 @@ byte RdData9918(TMS9918 *VDP)
 byte CheckSprites(TMS9918 *VDP)
 {
   unsigned int I,J,LS,LD;
-  byte DH,DV,*S,*D,*PS,*PD,*T;
+  byte *S,*D,*PS,*PD,*T;
+  int DH,DV;
 
   /* Find valid, displayed sprites */
-  DH = 255-(TMS9918_Sprites16(VDP)? 16:8);
+  DV = TMS9918_Sprites16(VDP)? -16:-8;
   for(I=J=0,S=VDP->SprTab;(I<32)&&(S[0]!=208);++I,S+=4)
-    if((S[0]<191)||(S[0]>DH)) J|=1<<I;
+    if(((S[0]<191)||(S[0]>255+DV))&&((int)S[1]-(S[3]&0x80? 32:0)>DV))
+      J|=1<<I;
 
   if(TMS9918_Sprites16(VDP))
   {
@@ -386,16 +518,16 @@ byte CheckSprites(TMS9918 *VDP)
         for(I=J>>1,D=S+4;I;I>>=1,D+=4)
           if(I&1)
           {
-            DV=S[0]-D[0];
-            if((DV<16)||(DV>240))
+            DV=(int)S[0]-(int)D[0];
+            if((DV<16)&&(DV>-16))
             {
-              DH=S[1]-D[1];
-              if((DH<16)||(DH>240))
+              DH=(int)S[1]-(int)D[1]-(S[3]&0x80? 32:0)+(D[3]&0x80? 32:0);
+              if((DH<16)&&(DH>-16))
               {
                 PS=VDP->SprGen+((int)(S[2]&0xFC)<<3);
                 PD=VDP->SprGen+((int)(D[2]&0xFC)<<3);
-                if(DV<16) PD+=DV; else { DV=256-DV;PS+=DV; }
-                if(DH>240) { DH=256-DH;T=PS;PS=PD;PD=T; }
+                if(DV>0) PD+=DV; else { DV=-DV;PS+=DV; }
+                if(DH<0) { DH=-DH;T=PS;PS=PD;PD=T; }
                 while(DV<16)
                 {
                   LS=((unsigned int)PS[0]<<8)+PS[16];
@@ -415,16 +547,16 @@ byte CheckSprites(TMS9918 *VDP)
         for(I=J>>1,D=S+4;I;I>>=1,D+=4)
           if(I&1)
           {
-            DV=S[0]-D[0];
-            if((DV<8)||(DV>248))
+            DV=(int)S[0]-(int)D[0];
+            if((DV<8)&&(DV>-8))
             {
-              DH=S[1]-D[1];
-              if((DH<8)||(DH>248))
+              DH=(int)S[1]-(int)D[1]-(S[3]&0x80? 32:0)+(D[3]&0x80? 32:0);
+              if((DH<8)&&(DH>-8))
               {
                 PS=VDP->SprGen+((int)S[2]<<3);
                 PD=VDP->SprGen+((int)D[2]<<3);
-                if(DV<8) PD+=DV; else { DV=256-DV;PS+=DV; }
-                if(DH>248) { DH=256-DH;T=PS;PS=PD;PD=T; }
+                if(DV>0) PD+=DV; else { DV=-DV;PS+=DV; }
+                if(DH<0) { DH=-DH;T=PS;PS=PD;PD=T; }
                 while((DV<8)&&!(*PD&(*PS>>DH))) { ++DV;++PS;++PD; }
                 if(DV<8) return(1);
               }

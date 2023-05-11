@@ -5,7 +5,7 @@
 /** This file contains emulation for the SN76489 sound chip **/
 /** produced by Intel. See SN76489.c for the code.          **/
 /**                                                         **/
-/** Copyright (C) Marat Fayzullin 1996-2018                 **/
+/** Copyright (C) Marat Fayzullin 1996-2021                 **/
 /**     You are not allowed to distribute this software     **/
 /**     commercially. Please, notify me, if you make any    **/
 /**     changes to this file.                               **/
@@ -39,6 +39,7 @@ typedef unsigned char byte;
 /** SN76489 **************************************************/
 /** This data structure stores SN76489 state.               **/
 /*************************************************************/
+#pragma pack(4)
 typedef struct
 {
   int Clock;                   /* Base clock rate (Fin/32)   */
@@ -50,6 +51,7 @@ typedef struct
   byte Changed;                /* Bitmap of changed channels */
   int First;                   /* First used Sound() channel */
 } SN76489;
+#pragma pack()
 
 /** Reset76489() *********************************************/
 /** Reset the sound chip and use sound channels from the    **/
