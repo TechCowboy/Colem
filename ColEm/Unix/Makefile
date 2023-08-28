@@ -6,7 +6,7 @@ include ../../EMULib/Rules.Unix
 DEFINES+= -DCOLEM -DLSB_FIRST -DZLIB -DDEBUG -DCONDEBUG
 CFLAGS += -Wall -I$(LIBZ80)
 OBJECTS+= $(Z80) $(SN76489) $(TMS9918) $(AY8910) $(C24XX) $(CRC32) $(HUNT) \
-	  $(FDIDISK) ../Coleco.o ../AdamNet.o ../ColEm.o ../Menu.o Unix.o
+	  $(FDIDISK) ../Coleco.o ../AdamNet.o ../ColEm.o ../Menu.o Unix.o ../Fujinet.o
 
 all:    colem
 	@echo Done.
@@ -19,4 +19,4 @@ clean:
 	rm colem
 
 go:
-	./colem -verbose 128 -ntsc -adam sabotage.ddp
+	./colem -scale 4 -verbose 128 -ntsc -adam sabotage.ddp

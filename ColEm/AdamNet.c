@@ -17,6 +17,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #ifdef ANDROID
 #include "EMULib.h"
@@ -469,6 +470,9 @@ static void UpdateTAP(byte N,byte Dev,int V)
   }
 }
 
+//#define ORIGINAL_UPDATEDCB
+#ifdef ORIGINAL_UPDATEDCB
+
 static void UpdateDCB(byte Dev,int V)
 {
   byte DevID;
@@ -501,6 +505,76 @@ static void UpdateDCB(byte Dev,int V)
       break;
   }
 }
+#else
+static void UpdateDCB(byte Dev, int V)
+{
+  byte DevID;
+  bool UnknownDevice = true;
+
+  /* When writing, ignore invalid commands */
+  if (!V || (V >= 0x80))
+      return;
+
+  /* Compute device ID */
+  DevID = (GetDCB(Dev, DCB_DEV_NUM) << 4) + (GetDCB(Dev, DCB_ADD_CODE) & 0x0F);
+
+  /* Depending on the device ID... */
+  switch (DevID)
+  {
+  case 0x01:
+      UpdateKBD(Dev, V);
+      UnknownDevice = false;
+      break;
+  case 0x02:
+      UpdatePRN(Dev, V);
+      UnknownDevice = false;
+      break;
+
+  case 0x04:
+  case 0x05:
+  case 0x06:
+  case 0x07:
+      UpdateDSK(DiskID = DevID - 4, Dev, V);
+      UnknownDevice = false;
+      break;
+
+      
+  case 0x09:
+      UpdateFujinet(DevID, V);
+      UnknownDevice = true;
+      break;
+  case 0x0A:
+      UpdateFujiClock(DevID, V);
+      UnknownDevice = true;
+      break;
+
+  case 0x08:
+  case 0x18:
+  case 0x19:
+      UpdateTAP((DevID >> 4) + ((DevID & 1) << 1), Dev, V);
+      UnknownDevice = false;
+      break;
+
+  case 0x52:
+      UpdateDSK(DiskID, Dev, -2);
+      UnknownDevice = false;
+      break;
+
+  default:
+      break;
+  }
+
+  if (UnknownDevice)
+  {
+      SetDCB(Dev, DCB_CMD_STAT, RSP_ACK + 0x0B);
+      if (Verbose & 0x80)
+        printf("AdamNet: %s unknown device #%d\n", V >= 0 ? "Write to" : "Read from", DevID);
+  }
+
+}
+
+#endif
+
 
 /** ReadPCB() ************************************************/
 /** Read value from a given PCB or DCB address.             **/
