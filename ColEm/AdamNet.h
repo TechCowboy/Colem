@@ -85,6 +85,66 @@ void ResetPCB(void);
 /*************************************************************/
 void PutKBD(unsigned int Key);
 
+void ReportDevice(byte Dev, word MsgSize, byte IsBlock);
+void SetDCB(byte Dev, byte Offset, byte Value);
+
+/** PCB Field Offsets ****************************************/
+#define PCB_CMD_STAT 0
+#define PCB_BA_LO 1
+#define PCB_BA_HI 2
+#define PCB_MAX_DCB 3
+#define PCB_SIZE 4
+
+/** DCB Field Offsets ****************************************/
+#define DCB_CMD_STAT 0
+#define DCB_BA_LO 1
+#define DCB_BA_HI 2
+#define DCB_BUF_LEN_LO 3
+#define DCB_BUF_LEN_HI 4
+#define DCB_SEC_NUM_0 5
+#define DCB_SEC_NUM_1 6
+#define DCB_SEC_NUM_2 7
+#define DCB_SEC_NUM_3 8
+#define DCB_DEV_NUM 9
+#define DCB_RETRY_LO 14
+#define DCB_RETRY_HI 15
+#define DCB_ADD_CODE 16
+#define DCB_MAXL_LO 17
+#define DCB_MAXL_HI 18
+#define DCB_DEV_TYPE 19
+#define DCB_NODE_TYPE 20
+#define DCB_SIZE 21
+
+/** PCB Commands *********************************************/
+#define CMD_PCB_IDLE 0x00
+#define CMD_PCB_SYNC1 0x01
+#define CMD_PCB_SYNC2 0x02
+#define CMD_PCB_SNA 0x03
+#define CMD_PCB_RESET 0x04
+#define CMD_PCB_WAIT 0x05
+
+/** DCB Commands *********************************************/
+#define CMD_RESET 0x00
+#define CMD_STATUS 0x01
+#define CMD_ACK 0x02
+#define CMD_CLEAR 0x03
+#define CMD_RECEIVE 0x04
+#define CMD_CANCEL 0x05
+#define CMD_SEND 0x06 /* + SIZE_HI + SIZE_LO + DATA + CRC */
+#define CMD_NACK 0x07
+
+#define CMD_SOFT_RESET 0x02
+#define CMD_WRITE 0x03
+#define CMD_READ 0x04
+
+/** Response Codes *******************************************/
+#define RSP_STATUS 0x80 /* + SIZE_HI + SIZE_LO + TXCODE + STATUS + CRC */
+#define RSP_ACK 0x90
+#define RSP_CANCEL 0xA0
+#define RSP_SEND 0xB0 /* + SIZE_HI + SIZE_LO + DATA + CRC */
+#define RSP_NACK 0xC0
+
+
 #ifdef __cplusplus
 }
 #endif

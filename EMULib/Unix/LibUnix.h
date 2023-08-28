@@ -59,46 +59,46 @@ extern "C" {
 #define BMASK 0x03
 #endif
 
-extern int  ARGC;
-extern char **ARGV;
+extern    int ARGC;
+extern    char **ARGV;
 
-/** InitUnix() ***********************************************/
-/** Initialize Unix/X11 resources and set initial window.   **/
-/** title and dimensions.                                   **/
-/*************************************************************/
-int InitUnix(const char *Title,int Width,int Height);
+    /** InitUnix() ***********************************************/
+    /** Initialize Unix/X11 resources and set initial window.   **/
+    /** title and dimensions.                                   **/
+    /*************************************************************/
+    int InitUnix(const char *Title, int Width, int Height);
 
-/** TrashUnix() **********************************************/
-/** Free resources allocated in InitUnix()                  **/
-/*************************************************************/
-void TrashUnix(void);
+    /** TrashUnix() **********************************************/
+    /** Free resources allocated in InitUnix()                  **/
+    /*************************************************************/
+    void TrashUnix(void);
 
-/** InitAudio() **********************************************/
-/** Initialize sound. Returns rate (Hz) on success, else 0. **/
-/** Rate=0 to skip initialization (will be silent).         **/
-/*************************************************************/
-unsigned int InitAudio(unsigned int Rate,unsigned int Latency);
+    /** InitAudio() **********************************************/
+    /** Initialize sound. Returns rate (Hz) on success, else 0. **/
+    /** Rate=0 to skip initialization (will be silent).         **/
+    /*************************************************************/
+    unsigned int InitAudio(unsigned int Rate, unsigned int Latency);
 
-/** TrashAudio() *********************************************/
-/** Free resources allocated by InitAudio().                **/
-/*************************************************************/
-void TrashAudio(void);
+    /** TrashAudio() *********************************************/
+    /** Free resources allocated by InitAudio().                **/
+    /*************************************************************/
+    void TrashAudio(void);
 
-/** PauseAudio() *********************************************/
-/** Pause/resume audio playback.                            **/
-/*************************************************************/
-int PauseAudio(int Switch);
+    /** PauseAudio() *********************************************/
+    /** Pause/resume audio playback.                            **/
+    /*************************************************************/
+    int PauseAudio(int Switch);
 
-/** X11Window() **********************************************/
-/** Open a window of a given size with a given title.       **/
-/*************************************************************/
-Window X11Window(const char *Title,int Width,int Height);
+    /** X11Window() **********************************************/
+    /** Open a window of a given size with a given title.       **/
+    /*************************************************************/
+    Window X11Window(const char *Title, int Width, int Height);
 
-/** X11GetColor **********************************************/
-/** Get pixel for the current screen depth based on the RGB **/
-/** values.                                                 **/
-/*************************************************************/
-unsigned int X11GetColor(unsigned char R,unsigned char G,unsigned char B);
+    /** X11GetColor **********************************************/
+    /** Get pixel for the current screen depth based on the RGB **/
+    /** values.                                                 **/
+    /*************************************************************/
+    unsigned int X11GetColor(unsigned char R, unsigned char G, unsigned char B);
 
 #ifdef __cplusplus
 }

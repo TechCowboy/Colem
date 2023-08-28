@@ -9,12 +9,14 @@ OBJECTS+= $(Z80) $(SN76489) $(TMS9918) $(AY8910) $(C24XX) $(CRC32) $(HUNT) \
 	  $(FDIDISK) ../Coleco.o ../AdamNet.o ../ColEm.o ../Menu.o Unix.o
 
 all:    colem
+	@echo Done.
 
 colem:	Makefile $(OBJECTS)
 	$(CC) -o $@ $(CFLAGS) $(OBJECTS) $(LIBS)
 
 clean:
 	rm -f $(OBJECTS)
+	rm colem
 
 go:
-	./colem -ntfs -adam reversi.ddp
+	./colem -verbose 128 -ntsc -adam sabotage.ddp

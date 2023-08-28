@@ -75,7 +75,7 @@ const char *SndName = "LOG.MID"; /* Soundtrack log file         */
 const char *PalName = "ColEm.pal"; /* Default palette file      */
 const char *StaName = 0;         /* Emulation state save file   */
 const char *SavName = 0;         /* EEPROM data save file       */
-const char *HomeDir = 0;         /* Full path to home directory */
+      char HomeDir[255] = {""};         /* Full path to home directory */
 const char *PrnName = 0;         /* Printer redirection file    */
 FILE *PrnStream = 0;
 

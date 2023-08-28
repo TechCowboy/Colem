@@ -16,6 +16,7 @@
 #include "NetPlay.h"
 #include "Record.h"
 #include "Sound.h"
+#include "Fujinet.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -36,7 +37,7 @@ int SndVolume;             /* Master volume for audio        */
 int Keypad;                /* Keypad key being pressed       */
 Image ScrBuf;              /* Display buffer                 */
 
-char *Title = "ColEm 5.6";
+char *Title = "ColEm 5.6" FUJI_VERSION;
 
 void HandleKeys(unsigned int Key);
 

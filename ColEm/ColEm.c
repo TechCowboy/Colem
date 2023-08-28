@@ -13,6 +13,7 @@
 
 #include "Coleco.h"
 #include "EMULib.h"
+#include "Fujinet.h"
 #include "Help.h"
 
 #include <stdio.h>
@@ -20,6 +21,9 @@
 #include <string.h>
 #include <signal.h>
 #include <ctype.h>
+
+extern int ARGC;
+extern char **ARGV;
 
 char *Options[]=
 {
@@ -52,6 +56,14 @@ int main(int argc,char *argv[])
   char *P;
   int N,J,I;
 
+  printf("argc: %d\n", argc);
+  for (I=0; I<argc; I++)
+  {
+    printf("argv[%d]: %s\n", I, argv[I]);
+  }
+  ARGC = argc;
+  ARGV = argv;
+
 #if defined(DEBUG)
   CPU.Trap=0xFFFF;
   CPU.Trace=0;
@@ -64,12 +76,18 @@ int main(int argc,char *argv[])
 #endif
 
   /* Set home directory to where executable is */
+printf("Setting home dir\n");
+  strcpy(HomeDir, argv[0]);
 #if defined(MSDOS) || defined(WINDOWS)
-  P=strrchr(argv[0],'\\');
+      P = strrchr(HomeDir, '\\');
 #else
-  P=strrchr(argv[0],'/');
+      P = strrchr(HomeDir, '/');
 #endif
-  if(P) { *P='\0';HomeDir=argv[0]; }
+  if(P) 
+  {
+     *P='\0';
+  }
+printf("done.\n");
 
 #if defined(UNIX) || defined(MAEMO) || defined(MSDOS)
   /* Extract visual effects arguments */
@@ -90,8 +108,29 @@ int main(int argc,char *argv[])
       switch(J)
       {
         case 0:  N++;
-                 if(N<argc) Verbose=atoi(argv[N]);
-                 else printf("%s: No verbose level supplied\n",argv[0]);
+                 if(N<argc) 
+                 {
+                  Verbose=atoi(argv[N]);
+                  printf("Verbose settings on: ");
+                  if (Verbose & 1)
+                    printf("Startup Messages, ");
+                  if (Verbose & 2)
+                    printf("VDP, ");
+                  if (Verbose & 4)
+                    printf("Illegal Z80 Ops, ");
+                  if (Verbose & 8)
+                    printf("EEPROM, ");
+                  if (Verbose & 16)
+                    printf("Sound, ");
+                  if (Verbose & 32)
+                    printf("Disks, ");
+                  if (Verbose & 64)
+                    printf("Tapes, ");
+                  if (Verbose & 128)
+                    printf("AdamNet ");
+                  printf("\n");
+                 } else 
+                  printf("%s: No verbose level supplied\n",argv[0]);
                  break;
         case 1:  Mode|=CV_PAL;break;
         case 2:  Mode&=~CV_PAL;break;
@@ -145,7 +184,7 @@ int main(int argc,char *argv[])
                  }
                  break;
         case 25: N++;
-                 if(N<argc) HomeDir=argv[N];
+                 if(N<argc) strcpy(HomeDir,argv[N]);
                  else printf("%s: No home directory supplied\n",argv[0]);
                  break;
         case 26: N++;

@@ -127,7 +127,7 @@ extern Z80 CPU;                       /* CPU registers+state */
 extern TMS9918 VDP;                   /* TMS9918 VDP state   */
 extern byte *VRAM;                    /* Video RAM           */
 
-extern const char *HomeDir;           /* Home directory      */
+extern char HomeDir[255];           /* Home directory      */
 extern const char *SndName;           /* Soundtrack log file */
 extern const char *StaName;           /* State save file     */
 extern const char *SavName;           /* EEPROM save file    */
